@@ -107,6 +107,75 @@ description: 你的技能描述
 
 重启服务后自动生效。
 
+## ✅ TickTick（滴答清单）技能配置
+
+项目内已内置 `ticktick-manager` 技能，可直接调用 Dida365 OpenAPI 管理任务。
+
+### 1) 配置 `.env`
+
+```env
+TICKTICK_BASE_URL=https://api.dida365.com/open/v1
+TICKTICK_ACCESS_TOKEN=
+TICKTICK_CLIENT_ID=
+TICKTICK_CLIENT_SECRET=
+TICKTICK_REDIRECT_URI=
+TICKTICK_REFRESH_TOKEN=
+TICKTICK_OAUTH_BASE_URL=https://dida365.com
+```
+
+### 2) 首次获取 Access Token
+
+运行：
+
+```bash
+python3 workspace/skills/ticktick-manager/scripts/oauth_get_token.py \
+  --client-id "你的ClientID" \
+  --client-secret "你的ClientSecret" \
+  --redirect-uri "你的RedirectURI"
+```
+
+脚本会输出授权 URL，浏览器授权后粘贴 `code`，即可拿到 `access_token`（若平台返回也会包含 `refresh_token`）。
+
+### 3) 验证 API 是否可用
+
+```bash
+python3 workspace/skills/ticktick-manager/scripts/ticktick_api.py list-projects
+```
+
+正常会返回项目 JSON 列表。
+
+### 4) 常用命令
+
+```bash
+# 列出项目
+python3 workspace/skills/ticktick-manager/scripts/ticktick_api.py list-projects
+
+# 列出项目任务
+python3 workspace/skills/ticktick-manager/scripts/ticktick_api.py list-tasks --project-id <projectId>
+
+# 创建任务
+python3 workspace/skills/ticktick-manager/scripts/ticktick_api.py create-task --project-id <projectId> --title "任务标题"
+
+# 更新任务
+python3 workspace/skills/ticktick-manager/scripts/ticktick_api.py update-task --task-id <taskId> --title "新标题"
+
+# 完成任务
+python3 workspace/skills/ticktick-manager/scripts/ticktick_api.py complete-task --project-id <projectId> --task-id <taskId>
+
+# 删除任务
+python3 workspace/skills/ticktick-manager/scripts/ticktick_api.py delete-task --project-id <projectId> --task-id <taskId>
+```
+
+### 5) 刷新 Token（可自动回写 `.env`）
+
+```bash
+# 仅刷新并打印
+python3 workspace/skills/ticktick-manager/scripts/oauth_refresh_token.py
+
+# 刷新并自动写回 .env
+python3 workspace/skills/ticktick-manager/scripts/oauth_refresh_token.py --write-env
+```
+
 ## ⚠️ 安全提示
 
 此项目设计为**纯个人使用**。bash 工具拥有完整的 shell 权限，请勿暴露给不信任的用户。

@@ -1,0 +1,21 @@
+{
+  "version": 1,
+  "skills": {
+    "ticktick-api-skill": {
+      "version": "1.0.2",
+      "installedAt": 1771939456407
+    },
+    "tick-md": {
+      "version": "1.3.3",
+      "installedAt": 1771939577987
+    },
+    "ticktick-tasks": {
+      "version": "1.0.0",
+      "installedAt": 1771939618779
+    },
+    "ticktick-cli": {
+      "version": "1.0.0",
+      "installedAt": 1771939938482
+    }
+  }
+}

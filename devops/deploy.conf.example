@@ -1,0 +1,39 @@
+# ============================================
+# 部署配置文件模板
+# ============================================
+# 使用方法:
+#   1. 复制此文件并重命名为 deploy.conf
+#      cp devops/deploy.conf.example devops/deploy.conf
+#   2. 修改下方配置为你的实际服务器信息
+#   3. 运行 ./devops/deploy.sh
+#
+# 注意: deploy.conf 已加入 .gitignore，不会提交到仓库
+# ============================================
+
+# 服务器 IP 地址
+SERVER_IP=192.168.1.100
+
+# SSH 端口 (默认22)
+SERVER_PORT=22
+
+# 登录用户名
+SERVER_USER=root
+
+# 登录密码
+SERVER_PASSWORD=your_password_here
+
+# 服务器上的目标部署路径
+REMOTE_PATH=/opt/wechat-ai-assistant
+
+# 本地项目路径 (留空则使用脚本所在目录的上级目录，即项目根目录)
+LOCAL_PATH=
+
+# pm2 服务名称 (留空则默认使用 REMOTE_PATH 的最后一段目录名)
+SERVICE_NAME=wechat-ai-assistant
+
+# 排除的文件/目录 (用空格分隔，支持rsync的排除模式)
+# .env       - 服务器上有自己的环境变量，不覆盖
+# dist/      - 在服务器上重新构建，不上传本地编译产物
+# *.db       - SQLite 数据库文件不覆盖
+# devops/    - 部署脚本本身不需要上传到服务器
+EXCLUDE_LIST=".git .idea .vscode node_modules .DS_Store .env dist *.db devops"

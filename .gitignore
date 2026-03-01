@@ -3,3 +3,6 @@ dist/
 .env
 *.db
 .DS_Store
+
+# 部署配置（含服务器密码，不提交）
+devops/deploy.conf

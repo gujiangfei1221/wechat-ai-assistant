@@ -1,6 +1,6 @@
 ---
 name: weather
-description: "Get current weather and forecasts via wttr.in or Open-Meteo. Use when: user asks about weather, temperature, or forecasts for any location. NOT for: historical weather data, severe weather alerts, or detailed meteorological analysis. No API key needed."
+description: "Get current weather and forecasts. Use when: user asks about weather, temperature, or forecasts for any location. NOT for: historical weather data, severe weather alerts, or detailed meteorological analysis. No API key needed."
 homepage: https://wttr.in/:help
 metadata: { "openclaw": { "emoji": "🌤️", "requires": { "bins": ["curl"] } } }
 ---
@@ -33,45 +33,41 @@ Get current weather conditions and forecasts.
 
 Always include a city, region, or airport code in weather queries.
 
-## Commands
+## ⚠️ 网络诊断（服务器环境必看）
+
+服务器访问境外网站可能超时，**获取天气前先做网络探测**：
+
+```bash
+# 步骤1：测试 wttr.in 连通性（2秒超时）
+curl -s --max-time 5 "wttr.in/Beijing?format=3"
+```
+
+- 若有输出 → wttr.in 可用，继续用下方 wttr.in 命令
+- 若超时/失败 → 立即切换 **备用方案 open-meteo**（见下方）
+
+## Primary: wttr.in Commands
 
 ### Current Weather
 
 ```bash
 # One-line summary
-curl "wttr.in/London?format=3"
+curl -s --max-time 10 "wttr.in/London?format=3"
 
 # Detailed current conditions
-curl "wttr.in/London?0"
+curl -s --max-time 10 "wttr.in/London?0"
 
-# Specific city
-curl "wttr.in/New+York?format=3"
+# Specific city (中文城市名需 URL 编码，或用拼音)
+curl -s --max-time 10 "wttr.in/Shanghai?format=3"
 ```
 
 ### Forecasts
 
 ```bash
 # 3-day forecast
-curl "wttr.in/London"
+curl -s --max-time 10 "wttr.in/London"
 
-# Week forecast
-curl "wttr.in/London?format=v2"
-
-# Specific day (0=today, 1=tomorrow, 2=day after)
-curl "wttr.in/London?1"
-```
-
-### Format Options
-
-```bash
-# One-liner
-curl "wttr.in/London?format=%l:+%c+%t+%w"
-
-# JSON output
-curl "wttr.in/London?format=j1"
-
-# PNG image
-curl "wttr.in/London.png"
+# JSON output（易于解析）
+curl -s --max-time 10 "wttr.in/London?format=j1"
 ```
 
 ### Format Codes
@@ -84,29 +80,31 @@ curl "wttr.in/London.png"
 - `%p` — Precipitation
 - `%l` — Location
 
-## Quick Responses
+## Fallback: open-meteo（备用，国内服务器友好）
 
-**"What's the weather?"**
-
-```bash
-curl -s "wttr.in/London?format=%l:+%c+%t+(feels+like+%f),+%w+wind,+%h+humidity"
-```
-
-**"Will it rain?"**
+当 wttr.in 不可用时，使用 open-meteo。需要先将城市名转换为经纬度。
 
 ```bash
-curl -s "wttr.in/London?format=%l:+%c+%p"
+# 步骤1：通过 geocoding API 获取城市经纬度
+# 张家港 → Zhangjiagang
+curl -s --max-time 10 "https://geocoding-api.open-meteo.com/v1/search?name=Zhangjiagang&count=1&language=zh&format=json"
+
+# 步骤2：用经纬度获取天气（替换 latitude/longitude）
+curl -s --max-time 10 "https://api.open-meteo.com/v1/forecast?latitude=31.87&longitude=120.56&current=temperature_2m,relative_humidity_2m,weather_code,wind_speed_10m&daily=temperature_2m_max,temperature_2m_min,precipitation_sum&timezone=Asia%2FShanghai&forecast_days=3"
 ```
 
-**"Weekend forecast"**
+### open-meteo 天气代码 (weather_code) 解读
 
-```bash
-curl "wttr.in/London?format=v2"
-```
+| 代码 | 天气 | 代码 | 天气 |
+|------|------|------|------|
+| 0 | 晴天 ☀️ | 61-67 | 雨 🌧️ |
+| 1-3 | 多云 ⛅ | 71-77 | 雪 ❄️ |
+| 45,48 | 雾 🌫️ | 80-82 | 阵雨 🌦️ |
+| 51-57 | 毛毛雨 🌦️ | 95-99 | 雷雨 ⛈️ |
 
 ## Notes
 
-- No API key needed (uses wttr.in)
-- Rate limited; don't spam requests
-- Works for most global cities
-- Supports airport codes: `curl wttr.in/ORD`
+- wttr.in: 无需 API key，支持全球城市，但境外服务器访问可能受限
+- open-meteo: 无需 API key，国内服务器通常可正常访问
+- 优先尝试 wttr.in，失败时自动切换 open-meteo
+

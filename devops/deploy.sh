@@ -190,19 +190,48 @@ do_sync() {
 do_remote_setup() {
     print_step "正在远程安装依赖并构建项目..."
 
+    # 注意：使用 bash -l 以登录 shell 执行，确保加载 nvm / PATH 等环境变量
     sshpass -p "$SERVER_PASSWORD" ssh -o StrictHostKeyChecking=no -p "$SERVER_PORT" \
-        "${SERVER_USER}@${SERVER_IP}" bash <<EOF
+        "${SERVER_USER}@${SERVER_IP}" bash -l <<EOF
 set -e
+
+# 尝试加载常见的 Node 环境（nvm / fnm / 系统安装）
+for profile in /etc/profile ~/.bash_profile ~/.bashrc ~/.profile; do
+    [ -f "\$profile" ] && source "\$profile" 2>/dev/null || true
+done
+
+# 若 node 依然找不到，尝试常见安装路径
+if ! command -v node &>/dev/null; then
+    for p in /usr/local/bin /usr/bin ~/.nvm/versions/node/*/bin; do
+        [ -x "\$p/node" ] && export PATH="\$p:\$PATH" && break
+    done
+fi
+
+echo ">>> 环境检查..."
+echo "    node: \$(node -v 2>/dev/null || echo '未找到')"
+echo "    npm:  \$(npm -v 2>/dev/null || echo '未找到')"
+echo "    PATH: \$PATH"
+
+if ! command -v npm &>/dev/null; then
+    echo "[错误] 仍然找不到 npm，请先在服务器安装 Node.js："
+    echo "       curl -fsSL https://rpm.nodesource.com/setup_20.x | bash -"
+    echo "       yum install -y nodejs"
+    exit 1
+fi
+
 cd "${REMOTE_PATH}"
 
-echo ">>> 安装 npm 依赖..."
-npm install --omit=dev
+echo ">>> 安装 npm 依赖（含 devDependencies，用于构建）..."
+npm install
 
 echo ">>> 构建 TypeScript..."
 npm run build
 
+echo ">>> 清理 devDependencies..."
+npm prune --omit=dev
+
 echo ">>> 重启服务 (pm2)..."
-if command -v pm2 &> /dev/null; then
+if command -v pm2 &>/dev/null; then
     if pm2 list | grep -q "${SERVICE_NAME}"; then
         pm2 restart "${SERVICE_NAME}"
         echo ">>> pm2 服务 '${SERVICE_NAME}' 重启成功"
@@ -213,12 +242,14 @@ if command -v pm2 &> /dev/null; then
     fi
 else
     echo ">>> [警告] 未检测到 pm2，跳过服务重启"
-    echo ">>> 请手动运行: node dist/server.js"
+    echo ">>> 安装 pm2: npm install -g pm2"
+    echo ">>> 手动启动: node dist/server.js"
 fi
 EOF
 
     print_success "远程构建与重启完成！"
 }
+
 
 # ============================================
 #  主流程

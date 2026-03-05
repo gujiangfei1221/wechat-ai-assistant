@@ -2,6 +2,8 @@
   "name": "weclaw",
   "version": "1.0.0",
   "description": "WeClaw - 轻量级微信 AI 助理，基于 OpenClaw 架构精简实现",
+  "license": "MIT",
+  "author": "gujiangfei",
   "type": "module",
   "scripts": {
     "build": "tsc",

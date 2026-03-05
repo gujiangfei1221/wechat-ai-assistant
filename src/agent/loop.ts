@@ -19,20 +19,40 @@ let skills: Skill[] = [];
 
 /**
  * 初始化 Agent（创建 OpenAI 兼容客户端 + 加载 Skills）
+ * 支持多个 AI 提供商：siliconflow（硅基流动）、bailian（阿里云百炼）
  */
 export function initAgent(): void {
-  const apiKey = process.env.SILICONFLOW_API_KEY;
-  const baseURL = process.env.SILICONFLOW_BASE_URL || "https://api.siliconflow.cn/v1";
+  const provider = process.env.AI_PROVIDER || "siliconflow";
+  let apiKey: string | undefined;
+  let baseURL: string;
+  let model: string;
 
-  if (!apiKey) {
-    throw new Error("缺少 SILICONFLOW_API_KEY 环境变量");
+  if (provider === "bailian") {
+    // 阿里云百炼配置
+    apiKey = process.env.BAILIAN_API_KEY;
+    baseURL = process.env.BAILIAN_BASE_URL || "https://coding.dashscope.aliyuncs.com/v1";
+    model = process.env.BAILIAN_MODEL || "qwen3.5-plus";
+    
+    if (!apiKey) {
+      throw new Error("缺少 BAILIAN_API_KEY 环境变量");
+    }
+  } else {
+    // 硅基流动配置（默认）
+    apiKey = process.env.SILICONFLOW_API_KEY;
+    baseURL = process.env.SILICONFLOW_BASE_URL || "https://api.siliconflow.cn/v1";
+    model = process.env.SILICONFLOW_MODEL || "deepseek-ai/DeepSeek-V3";
+    
+    if (!apiKey) {
+      throw new Error("缺少 SILICONFLOW_API_KEY 环境变量");
+    }
   }
 
   client = new OpenAI({ apiKey, baseURL });
   skills = loadSkills();
 
   console.log("[Agent] 初始化完成");
-  console.log(`[Agent] 模型: ${process.env.SILICONFLOW_MODEL || "deepseek-ai/DeepSeek-V3"}`);
+  console.log(`[Agent] 提供商: ${provider}`);
+  console.log(`[Agent] 模型: ${model}`);
   console.log(`[Agent] 工具数: ${getAllTools().length}`);
 }
 
@@ -45,26 +65,34 @@ function buildSystemPrompt(userId: string): string {
 
   let prompt = `你是${name}，一个智能且高效的个人 AI 助理。
 
-## 基本规则
+## 核心能力
 - 当前北京时间: ${now}
-- 你运行在用户的个人服务器上，拥有终端执行和文件读写能力。
-- 你可以主动使用工具来完成任务，不需要反复确认。
-- 回复尽量简洁精炼，微信消息不宜过长。
-- 如果用户告诉你重要的个人信息，使用 save_memory 工具记住它。
-- 对于复杂任务，先思考步骤，再逐步执行。
+- 你运行在用户的个人服务器上，拥有终端执行和文件读写能力
+- 你可以主动使用工具来完成任务，不需要反复确认
+- 你具备强大的推理和规划能力，能够自主分解复杂任务
 
-## 工具使用指南
-- bash_execute: 执行终端命令（查看文件、运行脚本、安装软件等）
-- read_file / write_file / edit_file: 读写编辑本地文件
-- save_memory / search_memory: 长期记忆的存取
-- add_cron_job / list_cron_jobs / remove_cron_job: 管理定时任务
-- clawhub_search / clawhub_install / clawhub_list / clawhub_update: 技能商店（搜索/安装/列出/更新技能）
+## 工作原则
+1. **主动思考**：遇到问题时，先分析可用的工具和方法，制定执行计划
+2. **自主解决**：优先尝试用现有工具解决问题，而不是直接说"做不到"
+3. **灵活应变**：如果某个方法失败，立即尝试备用方案
+4. **简洁回复**：微信消息不宜过长，重点突出
+
+## 可用工具
+- **bash_execute**: 执行任意终端命令（查看文件、运行脚本、网络请求、数据处理等）
+- **read_file / write_file / edit_file**: 读写编辑本地文件
+- **save_memory / search_memory**: 长期记忆的存取
+- **add_cron_job / list_cron_jobs / remove_cron_job**: 管理定时任务
+- **clawhub_search / clawhub_install / clawhub_list / clawhub_update**: 技能商店
+
+## 重要提醒
+⚠️ **技能文档不是工具**：下方的"已加载的技能"仅提供知识和方法指导，不是可直接调用的工具。
+- 例如：weather 技能告诉你如何用 bash_execute 查天气，但不存在 weather 工具
+- 正确做法：阅读技能文档 → 使用 bash_execute 执行文档中的命令
 
 ## 技能商店 (ClawHub)
-你可以通过 clawhub 工具从在线技能商店搜索和安装新能力。
-- 当你觉得自己缺少某个领域的能力时，主动使用 clawhub_search 搜索。
-- 当用户询问「你能不能做 XXX」而你当前技能不支持时，先去商店搜搜看。
-- 安装后新技能会在下一轮对话自动生效。`;
+- 当你觉得自己缺少某个领域的能力时，主动使用 clawhub_search 搜索
+- 当用户询问「你能不能做 XXX」而你当前技能不支持时，先去商店搜搜看
+- 安装后新技能会在下一轮对话自动生效`;
 
   // 注入 Skills
   const skillsPrompt = buildSkillsPrompt(skills);
@@ -129,7 +157,10 @@ export async function runAgentLoop(
   userId: string,
   userMessage: string,
 ): Promise<string> {
-  const model = process.env.SILICONFLOW_MODEL || "deepseek-ai/DeepSeek-V3";
+  const provider = process.env.AI_PROVIDER || "siliconflow";
+  const model = provider === "bailian" 
+    ? (process.env.BAILIAN_MODEL || "qwen3.5-plus")
+    : (process.env.SILICONFLOW_MODEL || "deepseek-ai/DeepSeek-V3");
   const systemPrompt = buildSystemPrompt(userId);
 
   // 获取历史上下文

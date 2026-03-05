@@ -32,9 +32,33 @@ cp .env.example .env
 ```
 
 `.env` 关键配置：
+
+#### 选择 AI 模型提供商
+
+**方案一：硅基流动（默认）**
 ```env
+AI_PROVIDER=siliconflow
 SILICONFLOW_API_KEY=sk-xxxx        # 硅基流动 API Key
 SILICONFLOW_MODEL=deepseek-ai/DeepSeek-V3  # 推荐模型
+```
+
+**方案二：阿里云百炼**
+```env
+AI_PROVIDER=bailian
+BAILIAN_API_KEY=sk-xxxx            # 百炼 API Key
+BAILIAN_MODEL=qwen3.5-plus         # 推荐模型
+```
+
+支持的百炼模型：
+- `qwen3.5-plus` - 通义千问 3.5 Plus（推荐，推理能力强）
+- `qwen3-max-2026-01-23` - 通义千问 3 Max
+- `qwen3-coder-next` / `qwen3-coder-plus` - 代码专用模型
+- `MiniMax-M2.5` - MiniMax 模型
+- `glm-5` / `glm-4.7` - 智谱 GLM 系列
+- `kimi-k2.5` - Kimi 模型
+
+#### 微信配置
+```env
 WECHAT_APP_ID=wxxxxxxxxxxx          # 微信测试号 AppID
 WECHAT_APP_SECRET=xxxxxxxxxxxxxxxx  # 微信测试号 AppSecret
 WECHAT_TOKEN=your_custom_token      # 自定义 Token（和微信后台保持一致）

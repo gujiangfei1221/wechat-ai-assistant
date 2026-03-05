@@ -1,17 +1,28 @@
 ---
 name: weather
-description: "Get current weather and forecasts. Use when: user asks about weather, temperature, or forecasts for any location. NOT for: historical weather data, severe weather alerts, or detailed meteorological analysis. No API key needed."
+description: "天气查询知识库。当用户询问天气时，使用 bash_execute 工具执行 curl 命令获取天气信息。这不是一个独立工具，而是使用 bash_execute 的指导文档。"
 homepage: https://wttr.in/:help
 metadata: { "openclaw": { "emoji": "🌤️", "requires": { "bins": ["curl"] } } }
 ---
 
-# Weather Skill
+# 天气查询技能（使用 bash_execute）
 
-Get current weather conditions and forecasts using **bash_execute** tool with curl commands.
+**⚠️ 关键说明：这不是一个独立的工具！**
 
-## ⚠️ 重要：如何使用此技能
+当用户询问天气时，你需要：
+1. 使用 `bash_execute` 工具
+2. 执行下方提供的 curl 命令
+3. 解析返回结果并回复用户
 
-**必须使用 `bash_execute` 工具执行 curl 命令**，不存在独立的 `weather` 工具！
+**错误示例**：
+```json
+{"name": "weather", "arguments": {"location": "Shanghai"}}  ❌ 不存在 weather 工具！
+```
+
+**正确示例**：
+```json
+{"name": "bash_execute", "arguments": {"command": "curl -s --max-time 10 'wttr.in/Shanghai?format=3'"}}  ✅
+```
 
 示例：
 ```json

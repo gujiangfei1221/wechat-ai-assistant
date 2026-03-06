@@ -8,6 +8,7 @@ import { initAgent, runAgentLoop } from "./agent/loop.js";
 import { setCronTriggerCallback } from "./cron/manager.js";
 import { startSessionCleanup } from "./agent/session.js";
 import { logger } from "./utils/logger.js";
+import { initConfigStore, setConfig, getConfig, unsetConfig, listConfigKeys } from "./config/store.js";
 
 // ==================== 微信 AI 助理服务器 ====================
 
@@ -92,7 +93,7 @@ app.post("/wechat", async (req, res) => {
     const userText = msg.content.trim();
     const taskKey = `${userId}:${msg.msgId}`;
 
-    logger.info("微信", `收到消息 [${userId}]: ${userText}`);
+    logger.info("微信", `收到消息 [${userId}]: ${userText.startsWith("/set") ? "/set *****(已脱敏)" : userText}`);
 
     // 防重复（微信可能重试推送同一条消息）
     if (processingTasks.has(taskKey)) {
@@ -100,6 +101,16 @@ app.post("/wechat", async (req, res) => {
       return;
     }
     processingTasks.add(taskKey);
+
+    // ==================== 指令拦截层 ====================
+    // /set /get /unset /config 指令在此拦截，不进入 AI 上下文，防止密钥泄露给大模型
+    const cmdResult = handleCommand(userText);
+    if (cmdResult !== null) {
+      processingTasks.delete(taskKey);
+      const reply = buildTextReplyXml(msg.fromUserName, msg.toUserName, cmdResult);
+      res.type("application/xml").send(reply);
+      return;
+    }
 
     // ⚡ 核心策略：先在 5 秒内返回"收到"，然后后台异步跑 Agent
     const reply = buildTextReplyXml(
@@ -118,6 +129,92 @@ app.post("/wechat", async (req, res) => {
     res.send("success"); // 微信要求即使出错也返回 success
   }
 });
+
+// ==================== 指令处理器 ====================
+// 返回 string 表示已处理（直接回复该字符串）；返回 null 表示非指令，交给 Agent
+
+/**
+ * 处理内置指令（不经过 AI，密钥安全）
+ *
+ * 支持的指令：
+ *   /set KEY=VALUE     保存配置（加密存储）
+ *   /get KEY           查看某个 key 是否已配置（不返回明文值）
+ *   /unset KEY         删除某个配置
+ *   /config            列出所有已配置的 key
+ *   /help              显示帮助
+ */
+function handleCommand(text: string): string | null {
+  const trimmed = text.trim();
+  if (!trimmed.startsWith("/")) return null;
+
+  const [cmd, ...rest] = trimmed.split(/\s+/);
+  const arg = rest.join(" ");
+
+  switch (cmd.toLowerCase()) {
+    case "/set": {
+      const eqIdx = arg.indexOf("=");
+      if (eqIdx === -1) {
+        return "❌ 格式错误。用法：/set KEY=VALUE\n例如：/set TICKTICK.API_TOKEN=abc123";
+      }
+      const key = arg.slice(0, eqIdx).trim();
+      const value = arg.slice(eqIdx + 1).trim();
+      if (!key || !value) {
+        return "❌ KEY 和 VALUE 均不能为空。用法：/set KEY=VALUE";
+      }
+      try {
+        setConfig(key, value);
+        logger.info("ConfigStore", `[/set] 用户设置了配置项: ${key.toUpperCase()}`);
+        return `✅ 配置已加密保存：${key.toUpperCase()}\n明文已从本次会话中丢弃，不会进入 AI 上下文。`;
+      } catch (err: any) {
+        logger.error("ConfigStore", "/set 失败:", err);
+        return `❌ 保存失败：${err.message}`;
+      }
+    }
+
+    case "/get": {
+      const key = arg.trim();
+      if (!key) return "❌ 请指定 KEY。用法：/get KEY";
+      const exists = getConfig(key) !== null;
+      return exists
+        ? `✅ ${key.toUpperCase()} 已配置（出于安全考虑不显示明文值）`
+        : `⚠️ ${key.toUpperCase()} 未配置`;
+    }
+
+    case "/unset": {
+      const key = arg.trim();
+      if (!key) return "❌ 请指定 KEY。用法：/unset KEY";
+      const deleted = unsetConfig(key);
+      return deleted
+        ? `✅ 配置已删除：${key.toUpperCase()}`
+        : `⚠️ ${key.toUpperCase()} 不存在，无需删除`;
+    }
+
+    case "/config": {
+      const keys = listConfigKeys();
+      if (keys.length === 0) return "📭 暂无已配置的 Skill 配置项。";
+      return `📋 已配置的 Skill 配置项（共 ${keys.length} 个）：\n${keys.map((k) => `  • ${k}`).join("\n")}`;
+    }
+
+    case "/help": {
+      return [
+        "🤖 内置指令列表：",
+        "",
+        "/set KEY=VALUE   保存 Skill 配置（加密，不进入 AI）",
+        "/get KEY         查看某配置项是否已设置",
+        "/unset KEY       删除某配置项",
+        "/config          列出所有已配置的 key",
+        "/help            显示此帮助",
+        "",
+        "💡 KEY 命名建议：SKILL名.配置名，例如：",
+        "   TICKTICK.API_TOKEN",
+        "   GITHUB.ACCESS_TOKEN",
+      ].join("\n");
+    }
+
+    default:
+      return null; // 未知指令交给 AI 处理
+  }
+}
 
 /**
  * 异步处理用户消息（不阻塞微信 5 秒超时）
@@ -167,6 +264,9 @@ async function start(): Promise<void> {
 
   // 初始化记忆数据库
   initMemoryDB();
+
+  // 初始化 Skill 配置加密存储
+  initConfigStore();
 
   // 初始化 Agent（连接硅基流动 + 加载 Skills）
   initAgent();

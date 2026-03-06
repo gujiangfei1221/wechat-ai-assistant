@@ -10,6 +10,7 @@ import { cronToolDefinitions, executeCronTool } from "../cron/manager.js";
 import { clawHubToolDefinitions, executeClawHubTool } from "../skills/clawhub.js";
 import { getSession, appendMessage, appendMessages } from "./session.js";
 import { loadSkills, reloadSkills, buildSkillsPrompt, type Skill } from "../skills/loader.js";
+import { listConfigKeys } from "../config/store.js";
 
 // ==================== ReAct 循环引擎 ====================
 
@@ -98,6 +99,14 @@ function buildSystemPrompt(userId: string): string {
 - 当你觉得自己缺少某个领域的能力时，主动使用 clawhub_search 搜索
 - 当用户询问「你能不能做 XXX」而你当前技能不支持时，先去商店搜搜看
 - 安装后新技能会在下一轮对话自动生效`;
+
+  // 注入已配置的 Skill 配置项（仅列出 key，不含明文值）
+  const configKeys = listConfigKeys();
+  if (configKeys.length > 0) {
+    prompt += `\n\n## 已配置的 Skill 配置项\n`;
+    prompt += `以下配置项已通过 /set 指令安全保存（可用 getConfig 函数读取明文，禁止直接在对话中询问用户要这些值）：\n`;
+    prompt += configKeys.map((k) => `- ${k}`).join("\n");
+  }
 
   // 注入 Skills
   const skillsPrompt = buildSkillsPrompt(skills);

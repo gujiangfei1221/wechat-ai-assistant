@@ -7,6 +7,7 @@ import { initMemoryDB } from "./memory/index.js";
 import { initAgent, runAgentLoop } from "./agent/loop.js";
 import { setCronTriggerCallback } from "./cron/manager.js";
 import { startSessionCleanup } from "./agent/session.js";
+import { logger } from "./utils/logger.js";
 
 // ==================== 微信 AI 助理服务器 ====================
 
@@ -41,7 +42,7 @@ app.get("/wechat", (req, res) => {
     incomingEchostr &&
     verifyWechatSignature(token, incomingSignature, incomingTimestamp, incomingNonce)
   ) {
-    console.log("[微信] Webhook 验证成功", {
+    logger.info("微信", "Webhook 验证成功", {
       hasToken: Boolean(token),
       tokenLength: token.length,
       timestamp: incomingTimestamp,
@@ -52,7 +53,7 @@ app.get("/wechat", (req, res) => {
     });
     res.send(incomingEchostr);
   } else {
-    console.warn("[微信] Webhook 验证失败", {
+    logger.warn("微信", "Webhook 验证失败", {
       hasToken: Boolean(token),
       tokenLength: token.length,
       hasSignature: Boolean(incomingSignature),
@@ -91,7 +92,7 @@ app.post("/wechat", async (req, res) => {
     const userText = msg.content.trim();
     const taskKey = `${userId}:${msg.msgId}`;
 
-    console.log(`[微信] 收到消息 [${userId}]: ${userText}`);
+    logger.info("微信", `收到消息 [${userId}]: ${userText}`);
 
     // 防重复（微信可能重试推送同一条消息）
     if (processingTasks.has(taskKey)) {
@@ -110,10 +111,10 @@ app.post("/wechat", async (req, res) => {
 
     // 后台异步执行 AI Agent Loop
     handleMessageAsync(userId, userText, taskKey).catch((err) => {
-      console.error("[Server] 异步处理失败:", err);
+      logger.error("Server", "异步处理失败:", err);
     });
   } catch (error) {
-    console.error("[Server] 消息解析/处理错误:", error);
+    logger.error("Server", "消息解析/处理错误:", error);
     res.send("success"); // 微信要求即使出错也返回 success
   }
 });
@@ -127,26 +128,26 @@ async function handleMessageAsync(
   taskKey: string,
 ): Promise<void> {
   try {
-    console.log(`[Agent] 开始处理 [${userId}]: ${userText}`);
+    logger.info("Agent", `开始处理 [${userId}]: ${userText}`);
     const startTime = Date.now();
 
     // 运行 ReAct Loop
     const result = await runAgentLoop(userId, userText);
 
     const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
-    console.log(`[Agent] 处理完成，耗时 ${elapsed}s`);
+    logger.info("Agent", `处理完成，耗时 ${elapsed}s`);
 
     // 通过客服消息 API 主动推送结果
     await sendCustomerMessage(userId, result);
 
-    console.log(`[Agent] 回复已发送 [${userId}]`);
+    logger.info("Agent", `回复已发送 [${userId}]`);
   } catch (error: any) {
-    console.error(`[Agent] 处理失败 [${userId}]:`, error);
+    logger.error("Agent", `处理失败 [${userId}]:`, error);
     try {
       await sendCustomerMessage(userId, `❌ 处理出错: ${error.message || "未知错误"}`);
     } catch {
       // 连发错误消息都失败了，只能记日志
-      console.error("[Agent] 发送错误通知也失败了");
+      logger.error("Agent", "发送错误通知也失败了");
     }
   } finally {
     processingTasks.delete(taskKey);
@@ -160,9 +161,9 @@ app.get("/health", (_req, res) => {
 
 // ==================== 启动服务 ====================
 async function start(): Promise<void> {
-  console.log("=========================================");
-  console.log("    🤖 微信 AI 助理 启动中...");
-  console.log("=========================================");
+  logger.info("Server", "=========================================");
+  logger.info("Server", "    🤖 微信 AI 助理 启动中...");
+  logger.info("Server", "=========================================");
 
   // 初始化记忆数据库
   initMemoryDB();
@@ -172,7 +173,7 @@ async function start(): Promise<void> {
 
   // 注册 Cron 触发回调：定时任务到期时，自动拉起 Agent 并推送结果到微信
   setCronTriggerCallback(async (userId: string, prompt: string) => {
-    console.log(`[Cron] 为用户 ${userId} 执行定时任务`);
+    logger.info("Cron", `为用户 ${userId} 执行定时任务`);
     const result = await runAgentLoop(userId, prompt);
     await sendCustomerMessage(userId, `⏰ 定时任务结果:\n${result}`);
   });
@@ -181,14 +182,14 @@ async function start(): Promise<void> {
   startSessionCleanup();
 
   app.listen(PORT, () => {
-    console.log(`[Server] 微信 Webhook 地址: http://localhost:${PORT}/wechat`);
-    console.log(`[Server] 健康检查: http://localhost:${PORT}/health`);
-    console.log("[Server] 等待微信消息...");
-    console.log("=========================================");
+    logger.info("Server", `微信 Webhook 地址: http://localhost:${PORT}/wechat`);
+    logger.info("Server", `健康检查: http://localhost:${PORT}/health`);
+    logger.info("Server", "等待微信消息...");
+    logger.info("Server", "=========================================");
   });
 }
 
 start().catch((err) => {
-  console.error("启动失败:", err);
+  logger.error("Server", "启动失败:", err);
   process.exit(1);
 });

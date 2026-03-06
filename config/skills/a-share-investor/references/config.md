@@ -42,7 +42,7 @@
 - **更高级别会覆盖触发**：收益率从 10% 涨到 20% 时，触发 Level 2
 - **调仓后重置记录**：按提醒操作后，运行以下命令重置：
   ```bash
-  python3 workspace/skills/a-share-investor/scripts/profit_alert.py \
+  python3 scripts/a-share-investor/profit_alert.py \
     --cost-310 <成本价> --cost-338 <成本价> --reset-alerts
   ```
 

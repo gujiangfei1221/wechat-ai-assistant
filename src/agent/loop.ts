@@ -1,4 +1,5 @@
 import OpenAI from "openai";
+import { logger } from "../utils/logger.js";
 import type {
   ChatCompletionMessageParam,
   ChatCompletionTool,
@@ -50,10 +51,10 @@ export function initAgent(): void {
   client = new OpenAI({ apiKey, baseURL });
   skills = loadSkills();
 
-  console.log("[Agent] 初始化完成");
-  console.log(`[Agent] 提供商: ${provider}`);
-  console.log(`[Agent] 模型: ${model}`);
-  console.log(`[Agent] 工具数: ${getAllTools().length}`);
+  logger.info("Agent", "初始化完成");
+  logger.info("Agent", `提供商: ${provider}`);
+  logger.info("Agent", `模型: ${model}`);
+  logger.info("Agent", `工具数: ${getAllTools().length}`);
 }
 
 /**
@@ -88,6 +89,10 @@ function buildSystemPrompt(userId: string): string {
 ⚠️ **技能文档不是工具**：下方的"已加载的技能"仅提供知识和方法指导，不是可直接调用的工具。
 - 例如：weather 技能告诉你如何用 bash_execute 查天气，但不存在 weather 工具
 - 正确做法：阅读技能文档 → 使用 bash_execute 执行文档中的命令
+
+⚠️ **技能摘要模式**：部分技能因内容较长，仅展示摘要并标注了"完整指令文件"路径。
+- 遇到这类技能时，**必须先用 read_file 工具读取完整文件**，再按其中的命令操作
+- 禁止在未读完整技能文档的情况下自行手动实现技能功能（如手动抓取数据、自行拼凑命令）
 
 ## 技能商店 (ClawHub)
 - 当你觉得自己缺少某个领域的能力时，主动使用 clawhub_search 搜索
@@ -184,7 +189,7 @@ export async function runAgentLoop(
     iterations++;
     const currentMessages = getSession(userId);
 
-    console.log(`[Agent] 循环第 ${iterations} 轮，消息数: ${currentMessages.length}`);
+    logger.info("Agent", `循环第 ${iterations} 轮，消息数: ${currentMessages.length}`);
 
     try {
       const response = await client.chat.completions.create({
@@ -211,7 +216,7 @@ export async function runAgentLoop(
         (assistantMessage.tool_calls && assistantMessage.tool_calls.length > 0)
       ) {
         const toolCalls = assistantMessage.tool_calls!;
-        console.log(`[Agent] 发起 ${toolCalls.length} 个工具调用`);
+        logger.info("Agent", `发起 ${toolCalls.length} 个工具调用`);
 
         // 并行执行所有工具调用
         const toolResults = await Promise.all(
@@ -224,7 +229,7 @@ export async function runAgentLoop(
             }
 
             const result = await routeToolExecution(tc.function.name, args, userId);
-            console.log(`[Agent] 工具 ${tc.function.name} 执行完毕 (${result.length} 字符)`);
+            logger.info("Agent", `工具 ${tc.function.name} 执行完毕 (${result.length} 字符)`);
 
             return {
               role: "tool" as const,
@@ -243,10 +248,10 @@ export async function runAgentLoop(
 
       // 没有工具调用 = 大功告成，返回最终文本
       const finalText = assistantMessage.content || "(AI 未返回文本内容)";
-      console.log(`[Agent] 循环结束，共 ${iterations} 轮`);
+      logger.info("Agent", `循环结束，共 ${iterations} 轮`);
       return finalText;
     } catch (error: any) {
-      console.error("[Agent] API 调用出错:", error.message || error);
+      logger.error("Agent", "API 调用出错:", error.message || error);
       return `AI 处理出错: ${error.message || "未知错误"}，请稍后重试。`;
     }
   }

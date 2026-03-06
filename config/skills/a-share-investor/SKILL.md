@@ -1,6 +1,6 @@
 ---
 name: a-share-investor
-description: "A股ETF非对称定投与风控监控。监控标的：沪深300ETF(510310)和中证A500ETF(159338)。使用场景：(1) 用户询问本周是否要定投、定投多少；(2) 每周定投日（周一12:00）自动触发定投决策；(3) 用户询问持仓收益/是否止盈；(4) 每日收盘前(14:50)止盈监控触发；(5) 用户说'帮我看看大盘/ETF/仓位/定投'等投资相关话题。语气风格：投顾对话，冷静客观，强调纪律与风控。"
+description: "A股ETF非对称定投与风控监控。监控标的：沪深300ETF(510310)和中证A500ETF(159338)。使用场景：(1) 用户询问本周是否要定投、定投多少；(2) 每周定投日（周一12:00）自动触发定投决策；(3) 用户询问持仓收益/是否止盈；(4) 每日收盘前(14:50)止盈监控触发；(5) 用户说'帮我看看大盘/ETF/仓位/定投'等投资相关话题。语气风格：投顾对话，冷静客观，强调纪律与风控。⚠️ 行动规则：遇到上述任何场景时，必须先用 read_file 读取完整技能文件，再按文件中的 bash 命令执行脚本，禁止自行手动抓取数据。"
 ---
 
 # A股定投与风控监控 Skill
@@ -19,7 +19,7 @@ description: "A股ETF非对称定投与风控监控。监控标的：沪深300ET
 **触发时机**：每周一 12:00，或用户主动询问定投建议时。
 
 ```bash
-python3 workspace/skills/a-share-investor/scripts/dip_invest.py \
+python3 scripts/a-share-investor/dip_invest.py \
   --base-310 1000 --base-338 600
 ```
 
@@ -40,7 +40,7 @@ python3 workspace/skills/a-share-investor/scripts/dip_invest.py \
 运行前**必须获取用户的持仓成本价**（可在对话中询问，或从记忆中读取）：
 
 ```bash
-python3 workspace/skills/a-share-investor/scripts/profit_alert.py \
+python3 scripts/a-share-investor/profit_alert.py \
   --cost-310 <510310成本价> --cost-338 <159338成本价>
 ```
 

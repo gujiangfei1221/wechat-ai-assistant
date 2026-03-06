@@ -1,5 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
+import { logger } from "../utils/logger.js";
 
 // ==================== Skills 动态加载系统（升级版） ====================
 // 兼容两种模式：
@@ -31,7 +32,7 @@ export function loadSkills(skillsDir?: string): Skill[] {
   const dir = skillsDir || path.resolve(process.env.CONFIG_DIR || "config", "skills");
 
   if (!fs.existsSync(dir)) {
-    console.log("[Skills] 技能目录不存在，跳过加载:", dir);
+    logger.info("Skills", `技能目录不存在，跳过加载: ${dir}`);
     return [];
   }
 
@@ -62,12 +63,12 @@ export function loadSkills(skillsDir?: string): Skill[] {
     }
   }
 
-  console.log(`[Skills] 共加载 ${skills.length} 个技能:`);
+  logger.info("Skills", `共加载 ${skills.length} 个技能:`);
   for (const s of skills) {
     const extras: string[] = [];
-    if (s.hasScripts) extras.push("📜scripts");
-    if (s.hasReferences) extras.push("📚refs");
-    console.log(`  - ${s.name}${s.description ? `: ${s.description.substring(0, 60)}...` : ""}${extras.length ? ` [${extras.join(", ")}]` : ""}`);
+    if (s.hasScripts) extras.push("�scripts");
+    if (s.hasReferences) extras.push("�refs");
+    logger.info("Skills", `  - ${s.name}${s.description ? `: ${s.description.substring(0, 60)}...` : ""}${extras.length ? ` [${extras.join(", ")}]` : ""}`);
   }
 
   return skills;
@@ -112,7 +113,7 @@ function parseSkillFile(filePath: string, fallbackName: string): Skill | null {
       hasReferences: false,
     };
   } catch (error: any) {
-    console.error(`[Skills] 解析失败 ${filePath}: ${error.message}`);
+    logger.error("Skills", `解析失败 ${filePath}: ${error.message}`);
     return null;
   }
 }
@@ -153,6 +154,6 @@ ${sections.join("\n\n")}`;
  * 热重载 Skills（运行时重新扫描目录）
  */
 export function reloadSkills(skillsDir?: string): Skill[] {
-  console.log("[Skills] 热重载技能...");
+  logger.info("Skills", "热重载技能...");
   return loadSkills(skillsDir);
 }

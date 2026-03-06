@@ -1,6 +1,7 @@
 import type { ChatCompletionTool } from "openai/resources/chat/completions";
 import { bashExecute } from "./bash.js";
 import { readFile, writeFile, editFile } from "./fs.js";
+import { logger } from "../utils/logger.js";
 
 // ==================== 工具注册中心 ====================
 
@@ -113,7 +114,7 @@ export async function executeTool(
   name: string,
   args: Record<string, any>,
 ): Promise<string> {
-  console.log(`[工具] 执行: ${name}`, JSON.stringify(args).substring(0, 200));
+  logger.info("工具", `执行: ${name} ${JSON.stringify(args).substring(0, 200)}`);
 
   switch (name) {
     case "bash_execute":

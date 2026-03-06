@@ -1,6 +1,7 @@
 import Database from "better-sqlite3";
 import path from "node:path";
 import type { ChatCompletionTool } from "openai/resources/chat/completions";
+import { logger } from "../utils/logger.js";
 
 // ==================== SQLite 长期记忆系统 ====================
 
@@ -26,7 +27,7 @@ export function initMemoryDB(dbPath?: string): void {
     CREATE INDEX IF NOT EXISTS idx_memories_category ON memories(category);
   `);
 
-  console.log("[记忆] SQLite 数据库初始化完成:", resolvedPath);
+  logger.info("记忆", `SQLite 数据库初始化完成: ${resolvedPath}`);
 }
 
 function getDB(): Database.Database {

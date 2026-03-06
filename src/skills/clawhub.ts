@@ -2,6 +2,7 @@ import { bashExecute } from "../tools/bash.js";
 import type { ChatCompletionTool } from "openai/resources/chat/completions";
 import path from "node:path";
 import fs from "node:fs";
+import { logger } from "../utils/logger.js";
 
 // ==================== ClawHub 技能商店集成 ====================
 // 让 AI 助理可以自主从 ClawHub 搜索和安装新技能
@@ -16,9 +17,9 @@ async function ensureClawHubInstalled(): Promise<boolean> {
   if (result.includes("clawhub")) return true;
 
   // 尝试自动安装
-  console.log("[ClawHub] clawhub CLI 未安装，正在自动安装...");
+  logger.info("ClawHub", "clawhub CLI 未安装，正在自动安装...");
   const installResult = await bashExecute("npm install -g clawhub 2>&1");
-  console.log("[ClawHub] 安装结果:", installResult);
+  logger.info("ClawHub", `安装结果: ${installResult}`);
 
   // 再次检查
   const recheck = await bashExecute("which clawhub || command -v clawhub");

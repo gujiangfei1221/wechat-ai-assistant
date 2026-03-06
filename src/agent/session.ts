@@ -1,4 +1,5 @@
 import type { ChatCompletionMessageParam } from "openai/resources/chat/completions";
+import { logger } from "../utils/logger.js";
 
 // ==================== 会话管理（内存存储） ====================
 // 每个微信用户（通过 OpenID 标识）拥有独立的对话历史
@@ -93,7 +94,7 @@ export function startSessionCleanup(): void {
     for (const [userId, session] of sessions) {
       if (now - session.lastActive > SESSION_EXPIRE_MS) {
         sessions.delete(userId);
-        console.log(`[Session] 清理过期会话: ${userId}`);
+        logger.info("Session", `清理过期会话: ${userId}`);
       }
     }
   }, 10 * 60 * 1000);

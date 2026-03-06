@@ -1,5 +1,6 @@
 import cron from "node-cron";
 import type { ChatCompletionTool } from "openai/resources/chat/completions";
+import { logger } from "../utils/logger.js";
 
 // ==================== Cron 定时任务管理器 ====================
 
@@ -44,12 +45,12 @@ export function addCronJob(
 
   const id = `cron_${nextId++}`;
   const task = cron.schedule(expression, async () => {
-    console.log(`[Cron] 触发任务 ${id}: ${description}`);
+    logger.info("Cron", `触发任务 ${id}: ${description}`);
     if (onCronTrigger) {
       try {
         await onCronTrigger(userId, `[定时任务触发] ${description}\n请执行: ${prompt}`);
       } catch (err) {
-        console.error(`[Cron] 任务 ${id} 执行失败:`, err);
+        logger.error("Cron", `任务 ${id} 执行失败:`, err);
       }
     }
   });
@@ -65,7 +66,7 @@ export function addCronJob(
   };
 
   jobs.set(id, job);
-  console.log(`[Cron] 已注册任务 ${id}: "${description}" (${expression})`);
+  logger.info("Cron", `已注册任务 ${id}: "${description}" (${expression})`);
 
   return `定时任务已创建:\n- ID: ${id}\n- 调度: ${expression}\n- 描述: ${description}\n- 执行内容: ${prompt}`;
 }

@@ -9,3 +9,5 @@ data/*
 
 # 部署配置（含服务器密码，不提交）
 devops/deploy.conf
+docs/我的微信AI助理实践.md
+docs/安全整改.md

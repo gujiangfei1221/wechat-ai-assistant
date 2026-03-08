@@ -34,6 +34,7 @@ SERVICE_NAME=wechat-ai-assistant
 # 排除的文件/目录 (用空格分隔，支持rsync的排除模式)
 # .env       - 服务器上有自己的环境变量，不覆盖
 # dist/      - 在服务器上重新构建，不上传本地编译产物
-# *.db       - SQLite 数据库文件不覆盖
+# data/      - 运行时数据（加密配置、数据库），绝不覆盖
+# workspace/ - AI 工作目录
 # devops/    - 部署脚本本身不需要上传到服务器
-EXCLUDE_LIST=".git .idea .vscode node_modules .DS_Store .env dist *.db devops"
+EXCLUDE_LIST=".git .idea .vscode node_modules .DS_Store .env dist data workspace *.db devops __pycache__ *.pyc"

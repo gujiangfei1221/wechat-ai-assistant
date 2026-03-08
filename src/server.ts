@@ -9,6 +9,7 @@ import { setCronTriggerCallback, initCronDB } from "./cron/manager.js";
 import { startSessionCleanup } from "./agent/session.js";
 import { logger } from "./utils/logger.js";
 import { initConfigStore, setConfig, getConfig, unsetConfig, listConfigKeys } from "./config/store.js";
+import { ticktickHandleCallback } from "./tools/ticktick.js";
 
 // ==================== 微信 AI 助理服务器 ====================
 
@@ -137,7 +138,7 @@ app.post("/wechat", async (req, res) => {
  * 处理内置指令（不经过 AI，密钥安全）
  *
  * 支持的指令：
- *   /set KEY=VALUE     保存配置（加密存储）
+ *   /set KEY=VALUE     保存配置（加密存储），支持一次发送多条
  *   /get KEY           查看某个 key 是否已配置（不返回明文值）
  *   /unset KEY         删除某个配置
  *   /config            列出所有已配置的 key
@@ -147,6 +148,35 @@ function handleCommand(text: string): string | null {
   const trimmed = text.trim();
   if (!trimmed.startsWith("/")) return null;
 
+  // ── 多行批量 /set 支持 ──
+  // 当消息包含多行且每行都是 /set 时，批量处理
+  const lines = trimmed.split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
+  if (lines.length > 1 && lines.every((l) => l.toLowerCase().startsWith("/set "))) {
+    const results: string[] = [];
+    const setKeys: string[] = [];
+    for (const line of lines) {
+      const result = handleSingleCommand(line);
+      if (result) results.push(result);
+      // 记录设置了哪些 key
+      const match = line.match(/^\/set\s+([^=]+)=/i);
+      if (match) setKeys.push(match[1].trim().toUpperCase());
+    }
+
+    // 如果刚配了 TICKTICK 凭证，追加下一步提示
+    if (setKeys.includes("TICKTICK.CLIENT_ID") && setKeys.includes("TICKTICK.CLIENT_SECRET")) {
+      results.push("\n💡 滴答清单凭证已就绪！现在请再发一次你的请求（如「今天有什么任务？」），我会自动生成授权链接。");
+    }
+
+    return results.join("\n");
+  }
+
+  return handleSingleCommand(trimmed);
+}
+
+/**
+ * 处理单条指令，返回回复字符串，非指令返回 null
+ */
+function handleSingleCommand(trimmed: string): string | null {
   const [cmd, ...rest] = trimmed.split(/\s+/);
   const arg = rest.join(" ");
 
@@ -154,7 +184,7 @@ function handleCommand(text: string): string | null {
     case "/set": {
       const eqIdx = arg.indexOf("=");
       if (eqIdx === -1) {
-        return "❌ 格式错误。用法：/set KEY=VALUE\n例如：/set TICKTICK.API_TOKEN=abc123";
+        return "❌ 格式错误。用法：/set KEY=VALUE\n例如：/set TICKTICK.CLIENT_ID=abc123";
       }
       const key = arg.slice(0, eqIdx).trim();
       const value = arg.slice(eqIdx + 1).trim();
@@ -164,10 +194,10 @@ function handleCommand(text: string): string | null {
       try {
         setConfig(key, value);
         logger.info("ConfigStore", `[/set] 用户设置了配置项: ${key.toUpperCase()}`);
-        return `✅ 配置已加密保存：${key.toUpperCase()}\n明文已从本次会话中丢弃，不会进入 AI 上下文。`;
+        return `✅ ${key.toUpperCase()} 已加密保存`;
       } catch (err: any) {
         logger.error("ConfigStore", "/set 失败:", err);
-        return `❌ 保存失败：${err.message}`;
+        return `❌ ${key.toUpperCase()} 保存失败：${err.message}`;
       }
     }
 
@@ -205,8 +235,12 @@ function handleCommand(text: string): string | null {
         "/config          列出所有已配置的 key",
         "/help            显示此帮助",
         "",
+        "💡 支持一次发送多条 /set：",
+        "   /set TICKTICK.CLIENT_ID=xxx",
+        "   /set TICKTICK.CLIENT_SECRET=yyy",
+        "",
         "💡 KEY 命名建议：SKILL名.配置名，例如：",
-        "   TICKTICK.API_TOKEN",
+        "   TICKTICK.CLIENT_ID",
         "   GITHUB.ACCESS_TOKEN",
       ].join("\n");
     }
@@ -249,6 +283,70 @@ async function handleMessageAsync(
   } finally {
     processingTasks.delete(taskKey);
   }
+}
+
+// ==================== TickTick OAuth 回调 ====================
+// 用户在浏览器点击授权链接后，滴答清单会跳转到此地址。
+// 服务器自动完成 code 换 token，全程无需用户手动操作。
+app.get("/ticktick/callback", async (req, res) => {
+  const code = typeof req.query.code === "string" ? req.query.code : "";
+  const state = typeof req.query.state === "string" ? req.query.state : "";
+
+  if (!code) {
+    logger.warn("TickTick", "回调缺少 code 参数");
+    res.status(400).send(buildCallbackPage(false, "授权失败：缺少 code 参数"));
+    return;
+  }
+
+  // state 中存储的是 userId（微信 openid），用于回调后推送通知
+  const userId = state ? decodeURIComponent(state) : "";
+
+  try {
+    await ticktickHandleCallback(code, userId);
+    logger.info("TickTick", `OAuth 授权成功，userId: ${userId}`);
+
+    // 通过微信客服消息通知用户
+    if (userId) {
+      sendCustomerMessage(
+        userId,
+        "✅ 滴答清单授权成功！\n现在可以继续你的请求了，例如：\"今天有什么任务？\"",
+      ).catch((err) => logger.warn("TickTick", "推送授权成功通知失败:", err));
+    }
+
+    res.send(buildCallbackPage(true, "授权成功！可以关闭此页面，回到微信继续使用。"));
+  } catch (err: any) {
+    logger.error("TickTick", "OAuth 回调处理失败:", err.message);
+    res.status(500).send(buildCallbackPage(false, `授权失败：${err.message}`));
+  }
+});
+
+function buildCallbackPage(success: boolean, message: string): string {
+  const icon = success ? "✅" : "❌";
+  const color = success ? "#4CAF50" : "#f44336";
+  return `<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>滴答清单授权${success ? "成功" : "失败"}</title>
+  <style>
+    body{font-family:-apple-system,sans-serif;display:flex;align-items:center;
+         justify-content:center;min-height:100vh;margin:0;background:#f5f5f5;}
+    .card{background:#fff;border-radius:12px;padding:40px;text-align:center;
+          box-shadow:0 2px 12px rgba(0,0,0,.1);max-width:360px;}
+    .icon{font-size:48px;margin-bottom:16px;}
+    h1{color:${color};font-size:20px;margin:0 0 12px;}
+    p{color:#666;font-size:14px;line-height:1.6;margin:0;}
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div class="icon">${icon}</div>
+    <h1>${success ? "授权成功" : "授权失败"}</h1>
+    <p>${message}</p>
+  </div>
+</body>
+</html>`;
 }
 
 // ==================== 健康检查 ====================

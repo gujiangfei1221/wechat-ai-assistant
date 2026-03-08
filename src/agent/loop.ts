@@ -34,7 +34,7 @@ export function initAgent(): void {
     apiKey = process.env.BAILIAN_API_KEY;
     baseURL = process.env.BAILIAN_BASE_URL || "https://coding.dashscope.aliyuncs.com/v1";
     model = process.env.BAILIAN_MODEL || "qwen3.5-plus";
-    
+
     if (!apiKey) {
       throw new Error("缺少 BAILIAN_API_KEY 环境变量");
     }
@@ -43,7 +43,7 @@ export function initAgent(): void {
     apiKey = process.env.SILICONFLOW_API_KEY;
     baseURL = process.env.SILICONFLOW_BASE_URL || "https://api.siliconflow.cn/v1";
     model = process.env.SILICONFLOW_MODEL || "deepseek-ai/DeepSeek-V3";
-    
+
     if (!apiKey) {
       throw new Error("缺少 SILICONFLOW_API_KEY 环境变量");
     }
@@ -85,6 +85,10 @@ function buildSystemPrompt(userId: string): string {
 - **save_memory / search_memory**: 长期记忆的存取
 - **add_cron_job / list_cron_jobs / remove_cron_job**: 管理定时任务
 - **clawhub_search / clawhub_install / clawhub_list / clawhub_update**: 技能商店
+- **get_skill_config(key)**: 读取通过 /set 指令加密存储的配置项明文（如 TICKTICK.ACCESS_TOKEN）。**需要 API Token 时必须优先调用此工具，禁止在 bash 里手动解密。**
+- **list_skill_config_keys**: 列出所有已配置的 key 名称（不含明文值）
+- **ticktick_get_token**: 获取有效的滴答清单 access_token（自动续期，首次使用时引导授权）
+- **ticktick_authorize(input)**: 完成滴答清单首次 OAuth 授权，input 填用户粘贴的回调 URL 或 code
 
 ## 重要提醒
 ⚠️ **技能文档不是工具**：下方的"已加载的技能"仅提供知识和方法指导，不是可直接调用的工具。
@@ -154,7 +158,7 @@ async function routeToolExecution(
     return result;
   }
   // 文件/命令工具
-  return executeTool(toolName, args);
+  return executeTool(toolName, args, userId);
 }
 
 /**
@@ -172,7 +176,7 @@ export async function runAgentLoop(
   userMessage: string,
 ): Promise<string> {
   const provider = process.env.AI_PROVIDER || "siliconflow";
-  const model = provider === "bailian" 
+  const model = provider === "bailian"
     ? (process.env.BAILIAN_MODEL || "qwen3.5-plus")
     : (process.env.SILICONFLOW_MODEL || "deepseek-ai/DeepSeek-V3");
   const systemPrompt = buildSystemPrompt(userId);

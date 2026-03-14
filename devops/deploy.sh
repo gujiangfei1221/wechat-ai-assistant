@@ -234,6 +234,63 @@ npm run build
 echo ">>> 清理 devDependencies..."
 npm prune --omit=dev
 
+echo ">>> 解压并配置技能目录中的 CLI 包..."
+for archive in config/skills/*/linux-x64/*.tar.gz; do
+    if [ -f "\$archive" ]; then
+        dir="\$(dirname "\$archive")"
+        echo "    解压: \$archive -> \$dir/"
+
+        # 保留已有的 .env（可能有用户手动配置的 API Key）
+        env_backup=""
+        cli_dir="\$dir/vidnote-cli"
+        if [ -f "\$cli_dir/.env" ]; then
+            env_backup="\$(cat "\$cli_dir/.env")"
+        fi
+
+        tar -xzf "\$archive" -C "\$dir/"
+
+        # 恢复 .env
+        if [ -n "\$env_backup" ]; then
+            echo "\$env_backup" > "\$cli_dir/.env"
+            echo "    已恢复 .env 配置"
+        fi
+
+        # 创建 .so 版本号 symlink（whisper.cpp 编译产物需要）
+        if [ -d "\$cli_dir" ]; then
+            cd "\$cli_dir"
+            for so in *.so; do
+                [ -f "\$so" ] || continue
+                base="\${so%.so}"
+                # libwhisper.so -> libwhisper.so.1
+                if [ "\$base" = "libwhisper" ]; then
+                    ln -sf "\$so" "\${so}.1" 2>/dev/null
+                else
+                    ln -sf "\$so" "\${so}.0" 2>/dev/null
+                fi
+            done
+            echo "    已创建 .so symlinks"
+
+            # 生成启动脚本（ffmpeg 自动检测 + LD_LIBRARY_PATH）
+            cat > vidnote << 'VIDNOTE_SCRIPT'
+#!/bin/bash
+SCRIPT_DIR="\$(cd "\$(dirname "\$0")" && pwd)"
+export LD_LIBRARY_PATH="\$SCRIPT_DIR:\$LD_LIBRARY_PATH"
+if "\$SCRIPT_DIR/ffmpeg" -version >/dev/null 2>&1; then
+    export FFMPEG_PATH="\$SCRIPT_DIR/ffmpeg"
+elif command -v ffmpeg >/dev/null 2>&1; then
+    export FFMPEG_PATH="\$(command -v ffmpeg)"
+fi
+export WHISPER_CPP_PATH="\$SCRIPT_DIR/whisper-cli"
+export WHISPER_MODEL_PATH="\$SCRIPT_DIR/ggml-base.bin"
+exec "\$SCRIPT_DIR/api_backend" "\$@"
+VIDNOTE_SCRIPT
+            chmod +x vidnote api_backend whisper-cli 2>/dev/null
+            echo "    已生成启动脚本"
+            cd "${REMOTE_PATH}"
+        fi
+    fi
+done
+
 echo ">>> 重启服务 (pm2)..."
 if command -v pm2 &>/dev/null; then
     if pm2 list | grep -q "${SERVICE_NAME}"; then

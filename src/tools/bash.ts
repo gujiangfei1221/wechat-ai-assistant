@@ -23,7 +23,7 @@ export async function bashExecute(command: string, cwd?: string): Promise<string
   try {
     const { stdout, stderr } = await execAsync(command, {
       cwd: workDir,
-      timeout: 180_000, // 180 秒超时熔断
+      timeout: 600_000, // 600 秒超时熔断（支持视频处理等长时间任务）
       maxBuffer: 1024 * 1024, // 1MB 缓冲
       env: { ...process.env, LANG: "en_US.UTF-8" },
     });
